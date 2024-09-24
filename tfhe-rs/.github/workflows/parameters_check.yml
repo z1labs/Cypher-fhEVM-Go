@@ -1,0 +1,52 @@
+# Perform a security check on all the cryptographic parameters set
+name: Parameters curves security check
+
+env:
+  CARGO_TERM_COLOR: always
+  ACTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  RUSTFLAGS: "-C target-cpu=native"
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+jobs:
+  params-curves-security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tfhe-rs
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
+
+      - name: Checkout lattice-estimator
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
+        with:
+          repository: malb/lattice-estimator
+          path: lattice_estimator
+          ref: '53508253629d3b5d31a2ad110e85dc69391ccb95'
+
+      - name: Install Sage
+        run: |
+          sudo apt update
+          sudo apt install -y sagemath
+
+      - name: Collect parameters
+        run: |
+          CARGO_PROFILE=devo make write_params_to_file
+
+      - name: Perform security check
+        run: |
+          PYTHONPATH=lattice_estimator sage ci/lattice_estimator.sage
+
+      - name: Slack Notification
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907
+        env:
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+          SLACK_ICON: https://pbs.twimg.com/profile_images/1274014582265298945/OjBKP9kn_400x400.png
+          SLACK_MESSAGE: "Security check for parameters finished with status: ${{ job.status }}. (${{ env.ACTION_RUN_URL }})"
+          SLACK_USERNAME: ${{ secrets.BOT_USERNAME }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

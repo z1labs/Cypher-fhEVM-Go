@@ -1,0 +1,52 @@
+syntax = "proto3";
+package kms;
+option go_package = "github.com/zama-ai/fhevm-go/fhevm/kms";
+
+service KmsEndpoint {
+  rpc Validate_and_decrypt(DecryptionRequest) returns (DecryptionResponse);
+  rpc Validate_and_reencrypt(ReencryptionRequest)
+      returns (ReencryptionResponse);
+  rpc Decrypt(DecryptionRequest) returns (DecryptionResponse);
+  rpc Reencrypt(ReencryptionRequest) returns (ReencryptionResponse);
+}
+
+enum FheType {
+  Bool = 0;
+  Euint4 = 1;
+  Euint8 = 2;
+  Euint16 = 3;
+  Euint32 = 4;
+  Euint64 = 5;
+  Euint128 = 6;
+  Euint160 = 7;
+}
+
+message Proof {
+  uint32 height = 1;
+  bytes merkle_patricia_proof = 2;
+}
+
+message DecryptionRequest {
+  FheType fhe_type = 1;
+  bytes ciphertext = 2;
+  bytes request = 3;
+  Proof proof = 4;
+}
+
+message DecryptionResponse {
+  bytes signature = 1;
+  FheType fhe_type = 2;
+  bytes plaintext = 3;
+}
+
+message ReencryptionRequest {
+  FheType fhe_type = 1;
+  bytes ciphertext = 2;
+  bytes request = 3;
+  Proof proof = 4;
+}
+
+message ReencryptionResponse {
+  bytes reencrypted_ciphertext = 1;
+  FheType fhe_type = 2;
+}

@@ -1,0 +1,140 @@
+# Run a small subset of shortint and integer tests to ensure quick feedback.
+name: Fast AWS Tests on CPU
+
+env:
+  CARGO_TERM_COLOR: always
+  ACTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  RUSTFLAGS: "-C target-cpu=native"
+  RUST_BACKTRACE: "full"
+  RUST_MIN_STACK: "8388608"
+  SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+  SLACK_ICON: https://pbs.twimg.com/profile_images/1274014582265298945/OjBKP9kn_400x400.png
+  SLACK_USERNAME: ${{ secrets.BOT_USERNAME }}
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+on:
+  # Allows you to run this workflow manually from the Actions tab as an alternative.
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  setup-ec2:
+    name: Setup EC2 instance (fast-tests)
+    runs-on: ubuntu-latest
+    outputs:
+      runner-name: ${{ steps.start-instance.outputs.label }}
+    steps:
+      - name: Start instance
+        id: start-instance
+        uses: zama-ai/slab-github-runner@58f2cae4bf2c0b6728083f5f009b6dc0eb6dc3ac
+        with:
+          mode: start
+          github-token: ${{ secrets.SLAB_ACTION_TOKEN }}
+          slab-url: ${{ secrets.SLAB_BASE_URL }}
+          job-secret: ${{ secrets.JOB_SECRET }}
+          backend: aws
+          profile: cpu-big
+
+  fast-tests:
+    name: Fast CPU tests
+    needs: setup-ec2
+    concurrency:
+      group: ${{ github.workflow }}_${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ${{ needs.setup-ec2.outputs.runner-name }}
+    steps:
+      - name: Checkout tfhe-rs
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
+
+      - name: Set up home
+        run: |
+          echo "HOME=/home/ubuntu" >> "${GITHUB_ENV}"
+
+      - name: Install latest stable
+        uses: dtolnay/rust-toolchain@dc6353516c68da0f06325f42ad880f76a5e77ec9
+        with:
+          toolchain: stable
+
+      - name: Run concrete-csprng tests
+        run: |
+          make test_concrete_csprng
+
+      - name: Run tfhe-zk-pok tests
+        run: |
+          make test_zk_pok
+
+      - name: Run core tests
+        run: |
+          AVX512_SUPPORT=ON make test_core_crypto
+
+      - name: Run boolean tests
+        run: |
+          make test_boolean
+
+      - name: Run user docs tests
+        run: |
+          make test_user_doc
+
+      - name: Run js on wasm API tests
+        run: |
+          make test_nodejs_wasm_api_in_docker
+
+      - name: Gen Keys if required
+        run: |
+          make gen_key_cache
+
+      - name: Run shortint tests
+        run: |
+          BIG_TESTS_INSTANCE=TRUE FAST_TESTS=TRUE make test_shortint_ci
+
+      - name: Run integer tests
+        run: |
+          BIG_TESTS_INSTANCE=TRUE FAST_TESTS=TRUE make test_integer_ci
+
+      - name: Run shortint multi-bit tests
+        run: |
+          BIG_TESTS_INSTANCE=TRUE FAST_TESTS=TRUE make test_shortint_multi_bit_ci
+
+      - name: Run integer multi-bit tests
+        run: |
+          BIG_TESTS_INSTANCE=TRUE FAST_TESTS=TRUE make test_integer_multi_bit_ci
+
+      - name: Run high-level API tests
+        run: |
+          make test_high_level_api
+
+      - name: Run safe deserialization tests
+        run: |
+          make test_safe_deserialization
+
+      - name: Slack Notification
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907
+        env:
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_MESSAGE: "Fast AWS tests finished with status: ${{ job.status }}. (${{ env.ACTION_RUN_URL }})"
+
+  teardown-ec2:
+    name: Teardown EC2 instance (fast-tests)
+    if: ${{ always() && needs.setup-ec2.result != 'skipped' }}
+    needs: [ setup-ec2, fast-tests ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stop instance
+        id: stop-instance
+        uses: zama-ai/slab-github-runner@58f2cae4bf2c0b6728083f5f009b6dc0eb6dc3ac
+        with:
+          mode: stop
+          github-token: ${{ secrets.SLAB_ACTION_TOKEN }}
+          slab-url: ${{ secrets.SLAB_BASE_URL }}
+          job-secret: ${{ secrets.JOB_SECRET }}
+          label: ${{ needs.setup-ec2.outputs.runner-name }}
+
+      - name: Slack Notification
+        if: ${{ failure() }}
+        continue-on-error: true
+        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907
+        env:
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_MESSAGE: "EC2 teardown (fast-tests) finished with status: ${{ job.status }}. (${{ env.ACTION_RUN_URL }})"

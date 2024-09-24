@@ -1,0 +1,75 @@
+# Compile and test tfhe-cuda-backend on an RTX 4090 machine
+name: TFHE Cuda Backend - 4090 full tests
+
+env:
+  CARGO_TERM_COLOR: always
+  ACTION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  RUSTFLAGS: "-C target-cpu=native"
+  RUST_BACKTRACE: "full"
+  RUST_MIN_STACK: "8388608"
+  SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+  SLACK_ICON: https://pbs.twimg.com/profile_images/1274014582265298945/OjBKP9kn_400x400.png
+  SLACK_USERNAME: ${{ secrets.BOT_USERNAME }}
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+on:
+  # Allows you to run this workflow manually from the Actions tab as an alternative.
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  cuda-tests-linux:
+    name: CUDA tests (RTX 4090)
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.label.name, '4090_test') }}
+    concurrency:
+      group: ${{ github.workflow }}_${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ["self-hosted", "4090-desktop"]
+
+    steps:
+      - name: Checkout tfhe-rs
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633
+
+      - name: Install latest stable
+        uses: dtolnay/rust-toolchain@dc6353516c68da0f06325f42ad880f76a5e77ec9
+        with:
+          toolchain: stable
+
+      - name: Run fmt checks
+        run: |
+          make check_fmt_gpu
+
+      - name: Run clippy checks
+        run: |
+          make pcc_gpu
+
+      - name: Run core crypto, integer and internal CUDA backend tests
+        run: |
+          make test_gpu
+
+      - name: Run user docs tests
+        run: |
+          make test_user_doc_gpu
+
+      - name: Test C API
+        run: |
+          make test_c_api_gpu
+
+      - name: Run High Level API Tests
+        run: |
+          make test_high_level_api_gpu
+
+      - uses: actions-ecosystem/action-remove-labels@2ce5d41b4b6aa8503e285553f75ed56e0a40bae0
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        with:
+          labels: 4090_test
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Slack Notification
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: rtCamp/action-slack-notify@4e5fb42d249be6a45a298f3c9543b111b02f7907
+        env:
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_MESSAGE: "CUDA RTX 4090 tests finished with status: ${{ job.status }}. (${{ env.ACTION_RUN_URL }})"

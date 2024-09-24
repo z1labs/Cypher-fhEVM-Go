@@ -1,0 +1,305 @@
+[package]
+name = "tfhe"
+version = "0.6.3"
+edition = "2021"
+readme = "../README.md"
+keywords = ["fully", "homomorphic", "encryption", "fhe", "cryptography"]
+homepage = "https://zama.ai/"
+documentation = "https://docs.zama.ai/tfhe-rs"
+repository = "https://github.com/zama-ai/tfhe-rs"
+license = "BSD-3-Clause-Clear"
+description = "TFHE-rs is a fully homomorphic encryption (FHE) library that implements Zama's variant of TFHE."
+build = "build.rs"
+exclude = [
+    "/docs/",
+    "/c_api_tests/",
+    "/CMakeLists.txt",
+    "/js_on_wasm_tests/",
+    "/web_wasm_parallel_tests/",
+]
+rust-version = "1.73"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dev-dependencies]
+rand = "0.8.5"
+rand_distr = "0.4.3"
+lazy_static = { version = "1.4.0" }
+criterion = "0.5.1"
+doc-comment = "0.3.3"
+serde_json = "1.0.94"
+# clap has to be pinned as its minimum supported rust version
+# changes often between minor releases, which breaks our CI
+clap = { version = "=4.4.4", features = ["derive"] }
+# Used in user documentation
+fs2 = { version = "0.4.3" }
+itertools = "0.11.0"
+statrs = "0.16"
+# For erf and normality test
+libm = "0.2.6"
+# Begin regex-engine deps
+test-case = "3.1.0"
+combine = "4.6.6"
+env_logger = "0.10.0"
+log = "0.4.19"
+hex = "0.4.3"
+# End regex-engine deps
+
+[build-dependencies]
+cbindgen = { version = "0.26.0", optional = true }
+
+[dependencies]
+concrete-csprng = { version = "0.4.0", path = "../concrete-csprng", features = [
+    "generator_fallback",
+    "parallel",
+] }
+tfhe-c-api-dynamic-buffer = { version = "0.1.0", optional = true, features = [
+    "c_api",
+] }
+lazy_static = { version = "1.4.0", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+rayon = { version = "1.5.0" }
+bincode = "1.3.3"
+concrete-fft = { version = "0.4.1", features = ["serde", "fft128"] }
+pulp = "0.18.8"
+tfhe-cuda-backend = { version = "0.2.0", path = "../backends/tfhe-cuda-backend", optional = true }
+aligned-vec = { version = "0.5", features = ["serde"] }
+dyn-stack = { version = "0.9" }
+paste = "1.0.7"
+fs2 = { version = "0.4.3", optional = true }
+# While we wait for repeat_n in rust standard library
+itertools = "0.11.0"
+rand_core = { version = "0.6.4", features = ["std"] }
+tfhe-zk-pok = { version = "0.1.0", path = "../tfhe-zk-pok", optional = true }
+
+# wasm deps
+wasm-bindgen = { version = "0.2.86", features = [
+    "serde-serialize",
+], optional = true }
+wasm-bindgen-rayon = { version = "1.0", optional = true }
+js-sys = { version = "0.3", optional = true }
+console_error_panic_hook = { version = "0.1.7", optional = true }
+serde-wasm-bindgen = { version = "0.6.0", optional = true }
+getrandom = { version = "0.2.8", optional = true }
+bytemuck = "1.14.3"
+
+[features]
+boolean = []
+shortint = []
+integer = ["shortint"]
+internal-keycache = ["dep:lazy_static", "dep:fs2"]
+gpu = ["tfhe-cuda-backend"]
+zk-pok-experimental = ["dep:tfhe-zk-pok"]
+
+pbs-stats = []
+
+# Experimental section
+experimental = []
+experimental-force_fft_algo_dif4 = []
+# End experimental section
+
+__c_api = ["dep:cbindgen", "dep:tfhe-c-api-dynamic-buffer"]
+# For the semver trick to skip the build.rs
+__force_skip_cbindgen = []
+boolean-c-api = ["boolean", "__c_api"]
+shortint-c-api = ["shortint", "__c_api"]
+high-level-c-api = ["boolean-c-api", "shortint-c-api", "integer", "__c_api"]
+
+__wasm_api = [
+    "dep:wasm-bindgen",
+    "dep:js-sys",
+    "dep:console_error_panic_hook",
+    "dep:serde-wasm-bindgen",
+    "dep:getrandom",
+    "getrandom/js",
+]
+boolean-client-js-wasm-api = ["boolean", "__wasm_api"]
+shortint-client-js-wasm-api = ["shortint", "__wasm_api"]
+integer-client-js-wasm-api = ["integer", "__wasm_api"]
+high-level-client-js-wasm-api = ["boolean", "shortint", "integer", "__wasm_api"]
+parallel-wasm-api = ["dep:wasm-bindgen-rayon"]
+
+nightly-avx512 = ["concrete-fft/nightly", "pulp/nightly"]
+
+# Enable the x86_64 specific accelerated implementation of the random generator for the default
+# backend
+generator_x86_64_aesni = ["concrete-csprng/generator_x86_64_aesni"]
+
+# Enable the aarch64 specific accelerated implementation of the random generator for the default
+# backend
+generator_aarch64_aes = ["concrete-csprng/generator_aarch64_aes"]
+
+# Private features
+__profiling = []
+
+seeder_unix = ["concrete-csprng/seeder_unix"]
+seeder_x86_64_rdseed = ["concrete-csprng/seeder_x86_64_rdseed"]
+
+# These target_arch features enable a set of public features for tfhe if users want a known
+# good/working configuration for tfhe.
+# For a target_arch that does not yet have such a feature, one can still enable features manually or
+# create a feature for said target_arch to make its use simpler.
+x86_64 = ["generator_x86_64_aesni", "seeder_x86_64_rdseed"]
+x86_64-unix = ["x86_64", "seeder_unix"]
+
+aarch64 = ["generator_aarch64_aes"]
+aarch64-unix = ["aarch64", "seeder_unix"]
+
+[package.metadata.docs.rs]
+# TODO: manage builds for docs.rs based on their documentation https://docs.rs/about
+features = ["x86_64-unix", "boolean", "shortint", "integer", "gpu"]
+rustdoc-args = ["--html-in-header", "katex-header.html"]
+
+###########
+#         #
+# Benches #
+#         #
+###########
+
+[[bench]]
+name = "ks-bench"
+path = "benches/core_crypto/ks_bench.rs"
+harness = false
+required-features = ["shortint", "internal-keycache"]
+
+[[bench]]
+name = "pbs-bench"
+path = "benches/core_crypto/pbs_bench.rs"
+harness = false
+required-features = ["boolean", "shortint", "internal-keycache"]
+
+[[bench]]
+name = "dev-bench"
+path = "benches/core_crypto/dev_bench.rs"
+harness = false
+required-features = ["internal-keycache"]
+
+[[bench]]
+name = "pbs128-bench"
+path = "benches/core_crypto/pbs128_bench.rs"
+harness = false
+
+[[bench]]
+name = "boolean-bench"
+path = "benches/boolean/bench.rs"
+harness = false
+required-features = ["boolean", "internal-keycache"]
+
+[[bench]]
+name = "shortint-bench"
+path = "benches/shortint/bench.rs"
+harness = false
+required-features = ["shortint", "internal-keycache"]
+
+[[bench]]
+name = "oprf-integer-bench"
+path = "benches/integer/oprf.rs"
+harness = false
+required-features = ["integer", "internal-keycache"]
+
+
+[[bench]]
+name = "oprf-shortint-bench"
+path = "benches/shortint/oprf.rs"
+harness = false
+required-features = ["shortint", "internal-keycache"]
+
+[[bench]]
+name = "integer-bench"
+path = "benches/integer/bench.rs"
+harness = false
+required-features = ["integer", "internal-keycache"]
+
+[[bench]]
+name = "integer-signed-bench"
+path = "benches/integer/signed_bench.rs"
+harness = false
+required-features = ["integer", "internal-keycache"]
+
+[[bench]]
+name = "hlapi"
+path = "benches/high_level_api/bench.rs"
+harness = false
+required-features = ["integer", "internal-keycache"]
+
+[[bench]]
+name = "keygen"
+path = "benches/keygen/bench.rs"
+harness = false
+required-features = ["shortint", "internal-keycache"]
+
+[[bench]]
+name = "utilities"
+path = "benches/utilities.rs"
+harness = false
+required-features = ["boolean", "shortint", "integer", "internal-keycache"]
+
+# Examples used as tools
+
+[[example]]
+name = "wasm_benchmarks_parser"
+path = "examples/utilities/wasm_benchmarks_parser.rs"
+required-features = ["shortint", "internal-keycache"]
+
+[[example]]
+name = "generates_test_keys"
+path = "examples/utilities/generates_test_keys.rs"
+required-features = ["boolean", "shortint", "internal-keycache"]
+
+[[example]]
+name = "boolean_key_sizes"
+path = "examples/utilities/boolean_key_sizes.rs"
+required-features = ["boolean", "internal-keycache"]
+
+[[example]]
+name = "shortint_key_sizes"
+path = "examples/utilities/shortint_key_sizes.rs"
+required-features = ["shortint", "internal-keycache"]
+
+[[example]]
+name = "hlapi_compact_pk_ct_sizes"
+path = "examples/utilities/hlapi_compact_pk_ct_sizes.rs"
+required-features = ["integer", "internal-keycache"]
+
+[[example]]
+name = "micro_bench_and"
+path = "examples/utilities/micro_bench_and.rs"
+required-features = ["boolean"]
+
+[[example]]
+name = "write_params_to_file"
+path = "examples/utilities/params_to_file.rs"
+required-features = ["boolean", "shortint", "internal-keycache"]
+
+# Real use-case examples
+
+[[example]]
+name = "fhe_strings"
+required-features = ["integer"]
+
+[[example]]
+name = "dark_market"
+required-features = ["integer", "internal-keycache"]
+
+[[example]]
+name = "regex_engine"
+required-features = ["integer"]
+
+[[example]]
+name = "sha256_bool"
+required-features = ["boolean"]
+
+[[example]]
+name = "sha256"
+required-features = ["integer"]
+
+[[example]]
+name = "pbs_count"
+required-features = ["integer", "pbs-stats"]
+
+[[example]]
+name = "dist_tuniform"
+required-features = ["integer", "internal-keycache"]
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]

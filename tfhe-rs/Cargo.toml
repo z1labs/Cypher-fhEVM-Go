@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = [
+    "tfhe",
+    "tfhe-zk-pok",
+    "tasks",
+    "apps/trivium",
+    "concrete-csprng",
+    "backends/tfhe-cuda-backend",
+]
+
+[profile.bench]
+lto = "fat"
+
+[profile.release]
+lto = "fat"
+
+[profile.release_lto_off]
+inherits = "release"
+lto = "off"
+
+# Compiles much faster for tests and allows reasonable performance for iterating
+[profile.devo]
+inherits = "dev"
+opt-level = 3
+lto = "off"
+debug-assertions = false

@@ -1,0 +1,130 @@
+use crate::integer::key_switching_key::KeySwitchingKey;
+use crate::integer::keycache::KEY_CACHE;
+use crate::integer::{CrtClientKey, IntegerKeyKind, RadixClientKey};
+use crate::shortint::parameters::ShortintKeySwitchingParameters;
+use crate::shortint::prelude::{PARAM_MESSAGE_1_CARRY_1_KS_PBS, PARAM_MESSAGE_2_CARRY_2_KS_PBS};
+
+#[test]
+fn gen_multi_keys_test_rdxinteger_to_rdxinteger_ci_run_filter() {
+    let num_block = 4;
+
+    // We retrieve only one keys set from cache since testing key switching with two identical keys
+    // set is meaningless.
+    let (client_key_1, server_key_1) =
+        KEY_CACHE.get_from_params(PARAM_MESSAGE_2_CARRY_2_KS_PBS, IntegerKeyKind::Radix);
+    let client_key_1 = RadixClientKey::from((client_key_1, num_block));
+
+    // We generate a set of client/server keys, using the default parameters:
+    let (client_key_2, server_key_2) =
+        crate::integer::gen_keys_radix(PARAM_MESSAGE_2_CARRY_2_KS_PBS, num_block);
+
+    // Get casting key
+    let ksk_params = ShortintKeySwitchingParameters::new(
+        client_key_2.parameters().ks_base_log(),
+        client_key_2.parameters().ks_level(),
+    );
+    let ksk = KeySwitchingKey::new(
+        (&client_key_1, &server_key_1),
+        (&client_key_2, &server_key_2),
+        ksk_params,
+    );
+
+    // Encrypt a value and cast
+    let ct1 = client_key_1.encrypt(228u8);
+    let ct2 = ksk.cast(&ct1);
+
+    // High level decryption and test
+    let clear: u64 = client_key_2.decrypt(&ct2);
+    assert_eq!(clear, 228);
+}
+
+#[test]
+fn gen_multi_keys_test_crtinteger_to_crtinteger_ci_run_filter() {
+    let basis = vec![2, 3, 5, 7, 11];
+
+    // We retrieve only one keys set from cache since testing key switching with two identical keys
+    // set is meaningless.
+    let (client_key_1, server_key_1) =
+        KEY_CACHE.get_from_params(PARAM_MESSAGE_2_CARRY_2_KS_PBS, IntegerKeyKind::CRT);
+    let client_key_1 = CrtClientKey::from((client_key_1, basis.clone()));
+
+    // We generate a set of client/server keys, using the default parameters:
+    let (client_key_2, server_key_2) =
+        crate::integer::gen_keys_crt(PARAM_MESSAGE_2_CARRY_2_KS_PBS, basis);
+
+    // Get casting key
+    let ksk_params = ShortintKeySwitchingParameters::new(
+        client_key_2.parameters().ks_base_log(),
+        client_key_2.parameters().ks_level(),
+    );
+    let ksk = KeySwitchingKey::new(
+        (&client_key_1, &server_key_1),
+        (&client_key_2, &server_key_2),
+        ksk_params,
+    );
+
+    // Encrypt a value and cast
+    let ct1 = client_key_1.encrypt(228);
+    let ct2 = ksk.cast(&ct1);
+
+    // High level decryption and test
+    let clear: u64 = client_key_2.decrypt(&ct2);
+    assert_eq!(clear, 228);
+}
+
+#[test]
+#[should_panic(
+    expected = "Attempt to build a KeySwitchingKey between integer key pairs with different message modulus and carry"
+)]
+fn gen_multi_keys_test_crtinteger_to_crtinteger_fail_ci_run_filter() {
+    let basis = vec![2, 3, 5, 7, 11];
+
+    let (client_key_1, server_key_1) =
+        KEY_CACHE.get_from_params(PARAM_MESSAGE_2_CARRY_2_KS_PBS, IntegerKeyKind::CRT);
+    let client_key_1 = CrtClientKey::from((client_key_1, basis.clone()));
+
+    let (client_key_2, server_key_2) =
+        KEY_CACHE.get_from_params(PARAM_MESSAGE_1_CARRY_1_KS_PBS, IntegerKeyKind::CRT);
+    let client_key_2 = CrtClientKey::from((client_key_2, basis));
+
+    // Get casting key
+    let ksk_params = ShortintKeySwitchingParameters::new(
+        client_key_2.parameters().ks_base_log(),
+        client_key_2.parameters().ks_level(),
+    );
+    let _ = KeySwitchingKey::new(
+        (&client_key_1, &server_key_1),
+        (&client_key_2, &server_key_2),
+        ksk_params,
+    );
+}
+
+#[test]
+fn gen_multi_keys_test_integer_to_integer_ci_run_filter() {
+    // We generate a set of client/server keys, using the default parameters:
+    let (client_key_1, server_key_1) =
+        KEY_CACHE.get_from_params(PARAM_MESSAGE_2_CARRY_2_KS_PBS, IntegerKeyKind::Radix);
+
+    // We generate a set of client/server keys, using the default parameters:
+    let (client_key_2, server_key_2) =
+        crate::integer::gen_keys(PARAM_MESSAGE_2_CARRY_2_KS_PBS, IntegerKeyKind::Radix);
+
+    // Get casting key
+    let ksk_params = ShortintKeySwitchingParameters::new(
+        client_key_2.parameters().ks_base_log(),
+        client_key_2.parameters().ks_level(),
+    );
+    let ksk = KeySwitchingKey::new(
+        (&client_key_1, &server_key_1),
+        (&client_key_2, &server_key_2),
+        ksk_params,
+    );
+
+    // Encrypt a value and cast
+    let ct1 = client_key_1.encrypt_radix(228u8, 4);
+    let ct2 = ksk.cast(&ct1);
+
+    // High level decryption and test
+    let clear: u8 = client_key_2.decrypt_radix(&ct2);
+    assert_eq!(clear, 228);
+}

@@ -1,0 +1,4 @@
+[submodule "tfhe-rs"]
+	path = tfhe-rs
+	# uses https or ssh based on current repo
+	url = ../tfhe-rs.git
