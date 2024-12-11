@@ -14,3 +14,5 @@ fhevm-go gives your EVM the ability to compute on encrypted data using fully hom
 The library helps EVM maintainers to extend their EVM with the power of FHE. If you are looking for a library to deploy and use smart contracts on an fhEVM, you should better look at [fhevm](https://docs.zama.ai/fhevm)
 
 ## License
+
+This software is distributed under the BSD-3-Clause-Clear license. If you have any questions, please contact hello@zama.ai.
